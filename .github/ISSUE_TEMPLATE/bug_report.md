@@ -1,6 +1,6 @@
 ---
 name: Bug report
-about: Report a runtime, plugin, SQL-generation, or validation defect
+about: Report a Skill, SQL-generation, reference, or validation defect
 title: "[BUG] "
 labels: bug
 ---
@@ -11,16 +11,16 @@ Describe the observed behavior and the expected behavior.
 
 ## Reproduction
 
-Provide a minimal synthetic or non-patient example. Do not include credentials or patient-level MIMIC data.
+Provide the natural-language extraction request and the generated SQL or definition behavior. Use synthetic/non-patient examples only.
 
 ## Environment
 
-- OS:
-- Python version:
 - MIMIC-IV version:
-- MIMIC Code/derived version if used:
+- MIMIC Code / derived version if relevant:
 - Plugin host (Codex / Claude Code / OpenClaw / other):
 
-## Contract / tool state
+## Extraction semantics
 
-Include non-sensitive Contract fields, revision, hashes, and tool error text when relevant.
+Include the non-sensitive cohort, analysis unit, index time, variables, windows, aggregation, output grain, and any definition ambiguity relevant to the defect.
+
+Do not include credentials or patient-level MIMIC data.
