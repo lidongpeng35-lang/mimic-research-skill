@@ -1,0 +1,10 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "mimic-research-skill",
+  "version": "0.1.0",
+  "description": "Evidence-backed MIMIC-IV cohort and clinical-variable extraction with a versioned contract, SQL compiler, controlled preview, QC, provenance, and explicit export approval.",
+  "author": {"name": "lidongpeng35-lang", "url": "https://github.com/lidongpeng35-lang"},
+  "homepage": "https://github.com/lidongpeng35-lang/mimic-research-skill",
+  "repository": "https://github.com/lidongpeng35-lang/mimic-research-skill",
+  "license": "MIT"
+}
