@@ -1,0 +1,16 @@
+cff-version: 1.2.0
+message: "If you use this software in research, please cite the repository version and the MIMIC-IV dataset/code sources used in your study."
+title: "MIMIC Research Skill"
+type: software
+authors:
+  - name: "lidongpeng35-lang"
+version: 0.1.0
+date-released: 2026-09-08
+repository-code: "https://github.com/lidongpeng35-lang/mimic-research-skill"
+license: MIT
+keywords:
+  - MIMIC-IV
+  - intensive care
+  - clinical research
+  - reproducibility
+  - PostgreSQL
