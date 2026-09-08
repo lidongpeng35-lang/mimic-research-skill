@@ -1,0 +1,18 @@
+{
+  "name": "mimic-research-skill",
+  "version": "0.1.0",
+  "description": "Evidence-backed MIMIC-IV cohort and clinical-variable extraction with versioned research contracts, controlled preview, QC, provenance, and explicit export approval.",
+  "author": {"name": "lidongpeng35-lang", "url": "https://github.com/lidongpeng35-lang"},
+  "homepage": "https://github.com/lidongpeng35-lang/mimic-research-skill",
+  "repository": "https://github.com/lidongpeng35-lang/mimic-research-skill",
+  "license": "MIT",
+  "keywords": ["mimic-iv", "icu", "clinical-research", "postgresql", "reproducibility"],
+  "skills": "./skills/",
+  "mcpServers": {
+    "mimic-data-extraction": {
+      "command": "python3",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/launch_mcp.py"],
+      "cwd": "${CLAUDE_PLUGIN_ROOT}"
+    }
+  }
+}
