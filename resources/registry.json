@@ -1,0 +1,31 @@
+{
+  "version": "0.1.0",
+  "status_policy": "candidate definitions require study-specific validation before publication use",
+  "concepts": [
+    {"id":"heart_rate","label_cn":"心率","label_en":"Heart rate","kind":"measurement","source":"mimiciv_derived.vitalsign","column":"heart_rate","unit":"beats/min","status":"candidate"},
+    {"id":"sbp","label_cn":"收缩压","label_en":"Systolic blood pressure","kind":"measurement","source":"mimiciv_derived.vitalsign","column":"sbp","unit":"mmHg","status":"candidate"},
+    {"id":"dbp","label_cn":"舒张压","label_en":"Diastolic blood pressure","kind":"measurement","source":"mimiciv_derived.vitalsign","column":"dbp","unit":"mmHg","status":"candidate"},
+    {"id":"mbp","label_cn":"平均动脉压","label_en":"Mean blood pressure","kind":"measurement","source":"mimiciv_derived.vitalsign","column":"mbp","unit":"mmHg","status":"candidate"},
+    {"id":"resp_rate","label_cn":"呼吸频率","label_en":"Respiratory rate","kind":"measurement","source":"mimiciv_derived.vitalsign","column":"resp_rate","unit":"breaths/min","status":"candidate"},
+    {"id":"temperature","label_cn":"体温","label_en":"Temperature","kind":"measurement","source":"mimiciv_derived.vitalsign","column":"temperature","unit":"degC","status":"candidate"},
+    {"id":"spo2","label_cn":"血氧饱和度","label_en":"SpO2","kind":"measurement","source":"mimiciv_derived.vitalsign","column":"spo2","unit":"%","status":"candidate"},
+    {"id":"glucose","label_cn":"血糖","label_en":"Glucose","kind":"measurement","source":"mimiciv_derived.chemistry","column":"glucose","unit":"mg/dL","status":"candidate"},
+    {"id":"creatinine","label_cn":"肌酐","label_en":"Creatinine","kind":"measurement","source":"mimiciv_derived.chemistry","column":"creatinine","unit":"mg/dL","status":"candidate"},
+    {"id":"bun","label_cn":"尿素氮","label_en":"BUN","kind":"measurement","source":"mimiciv_derived.chemistry","column":"bun","unit":"mg/dL","status":"candidate"},
+    {"id":"sodium","label_cn":"钠","label_en":"Sodium","kind":"measurement","source":"mimiciv_derived.chemistry","column":"sodium","unit":"mEq/L","status":"candidate"},
+    {"id":"potassium","label_cn":"钾","label_en":"Potassium","kind":"measurement","source":"mimiciv_derived.chemistry","column":"potassium","unit":"mEq/L","status":"candidate"},
+    {"id":"lactate","label_cn":"乳酸","label_en":"Lactate","kind":"measurement","source":"mimiciv_derived.bg","column":"lactate","unit":"mmol/L","status":"candidate","note":"verify arterial/venous specimen policy for the study"},
+    {"id":"hemoglobin","label_cn":"血红蛋白","label_en":"Hemoglobin","kind":"measurement","source":"mimiciv_derived.complete_blood_count","column":"hemoglobin","unit":"g/dL","status":"candidate"},
+    {"id":"platelet","label_cn":"血小板","label_en":"Platelet count","kind":"measurement","source":"mimiciv_derived.complete_blood_count","column":"platelet","unit":"K/uL","status":"candidate"},
+    {"id":"wbc","label_cn":"白细胞","label_en":"WBC","kind":"measurement","source":"mimiciv_derived.complete_blood_count","column":"wbc","unit":"K/uL","status":"candidate"},
+    {"id":"sofa","label_cn":"SOFA评分","label_en":"SOFA","kind":"score","source":"mimiciv_derived.sofa","column":"sofa_24hours","unit":"points","status":"candidate","note":"confirm time semantics and derived-table version"},
+    {"id":"charlson","label_cn":"Charlson合并症指数","label_en":"Charlson Comorbidity Index","kind":"score","source":"mimiciv_derived.charlson","column":"charlson_comorbidity_index","unit":"points","status":"candidate"},
+    {"id":"urine_output","label_cn":"尿量","label_en":"Urine output","kind":"measurement","source":"mimiciv_derived.urine_output","column":"urineoutput","unit":"mL","status":"candidate"},
+    {"id":"ventilation","label_cn":"机械通气","label_en":"Mechanical ventilation","kind":"exposure","source":"mimiciv_derived.ventilation","column":"ventilation_status","unit":null,"status":"candidate"},
+    {"id":"norepinephrine","label_cn":"去甲肾上腺素","label_en":"Norepinephrine","kind":"medication","source":"mimiciv_icu.inputevents","column":"amount/rate by registered itemid","unit":"source-dependent","status":"candidate","note":"resolve itemid and dose normalization against local MIMIC version"},
+    {"id":"icu_mortality","label_cn":"ICU死亡","label_en":"ICU mortality","kind":"outcome","source":"mimiciv_icu.icustays + mimiciv_hosp.admissions","column":"deathtime/outtime logic","unit":null,"status":"candidate"},
+    {"id":"hospital_mortality","label_cn":"住院死亡","label_en":"Hospital mortality","kind":"outcome","source":"mimiciv_hosp.admissions","column":"hospital_expire_flag","unit":null,"status":"candidate"},
+    {"id":"age","label_cn":"年龄","label_en":"Age","kind":"cohort_filter","source":"mimiciv_derived.age","column":"age","unit":"years","status":"candidate"},
+    {"id":"first_icu_stay","label_cn":"首次ICU入住","label_en":"First ICU stay","kind":"cohort_filter","source":"mimiciv_icu.icustays","column":"ROW_NUMBER by subject_id/intime","unit":null,"status":"candidate"}
+  ]
+}
