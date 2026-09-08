@@ -1,0 +1,29 @@
+{
+  "name": "mimic-research-skill",
+  "version": "0.1.0",
+  "description": "Evidence-backed MIMIC-IV cohort and clinical-variable extraction with a versioned contract, SQL compiler, controlled preview, QC, provenance, and explicit export approval.",
+  "author": {"name": "lidongpeng35-lang", "url": "https://github.com/lidongpeng35-lang"},
+  "homepage": "https://github.com/lidongpeng35-lang/mimic-research-skill",
+  "repository": "https://github.com/lidongpeng35-lang/mimic-research-skill",
+  "license": "MIT",
+  "keywords": ["mimic-iv", "icu", "clinical-research", "postgresql", "reproducibility"],
+  "skills": "./skills/",
+  "mcpServers": {
+    "mimic-data-extraction": {
+      "type": "stdio",
+      "command": "python3",
+      "args": ["scripts/launch_mcp.py"],
+      "cwd": ".",
+      "env_vars": ["PGHOST", "PGPORT", "PGDATABASE", "PGUSER", "PGPASSWORD", "MIMIC_CONTRACT_DIR", "MIMIC_EXPORT_DIR", "MIMIC_NODE_BIN", "PLUGIN_DATA", "CLAUDE_PLUGIN_DATA"]
+    }
+  },
+  "interface": {
+    "displayName": "MIMIC Research Skill",
+    "shortDescription": "Reproducible MIMIC-IV cohort and variable extraction.",
+    "longDescription": "Resolve MIMIC-IV concepts through an evidence-backed registry, compile a versioned research contract to SQL, run controlled preview/QC, and export only after explicit approval.",
+    "developerName": "lidongpeng35-lang",
+    "category": "Data & Analytics",
+    "capabilities": ["Interactive", "Read", "Export"],
+    "websiteURL": "https://github.com/lidongpeng35-lang/mimic-research-skill"
+  }
+}
