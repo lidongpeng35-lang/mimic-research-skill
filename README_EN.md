@@ -1,22 +1,48 @@
 # MIMIC Research Skill
 
-A reproducibility-oriented MIMIC-IV extraction Skill and plugin package for retrospective clinical research.
+[![CI](https://github.com/lidongpeng35-lang/mimic-research-skill/actions/workflows/ci.yml/badge.svg)](https://github.com/lidongpeng35-lang/mimic-research-skill/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![MIMIC-IV](https://img.shields.io/badge/Data-MIMIC--IV-informational.svg)](https://mimic.mit.edu/docs/IV/)
 
-It preserves the simple `SKILL.md + references/` interface of lightweight MIMIC skills while adding a semantic registry, versioned research Contract, SQL compiler, controlled Preview, quality checks, provenance, revision-aware approvals, and explicit CSV/XLSX export authorization.
+A reproducibility-oriented MIMIC-IV data-extraction Skill / Agent Plugin / Codex Plugin / Claude Code Plugin for retrospective clinical research.
 
-## Design goal
+The project keeps the lightweight `SKILL.md + references/` experience, but makes the research workflow explicit: **concept resolution → versioned research Contract → SQL/provenance → confirmation → Preview/QC → controlled export**.
 
-The main risk in MIMIC extraction is often not SQL syntax. It is silently choosing the wrong clinical meaning: an incorrect item/code, MIMIC-III/IV mismatch, wrong analysis unit or time zero, implicit aggregation, unit mixing, or a one-to-many join that changes the cohort. This project makes those choices explicit and reviewable before patient-data execution.
+> The goal is not merely to generate SQL that runs. Cohort definitions, analysis unit, time zero, windows, variables, aggregation, units, missingness and output grain should be auditable and reproducible.
 
-## Current snapshot
+## Why this project
 
-- 359 searchable runtime indicator/cohort-filter entries (303 indicators, 56 cohort filters).
-- 20 acceptance cases.
-- 263 measurement definitions in the research registry; 262 are currently marked `candidate` and 1 is `quarantined`.
-- 15-tool MCP workflow covering concept search, Contract compilation/resolution, Preview, QC/state, and controlled export.
-- 130 SQL template variants in the bundled compiler snapshot.
+High-risk MIMIC errors are often semantic rather than syntactic: incorrect itemids or ICD codes, MIMIC-III/IV mixing, wrong analysis unit or time zero, implicit first/max/mean choices, unit/specimen mixing, or one-to-many joins that silently change the cohort.
 
-A registered or executable definition is not automatically a publication-grade clinical definition. See `docs/DEFINITION_LIFECYCLE.md` for maturity and validation rules.
+This repository therefore follows several rules:
+
+- do not invent itemids, ICD codes, tables, units or score formulas from model memory;
+- define research semantics before generating SQL;
+- preserve raw events when aggregation is not specified;
+- a dictionary match is not equivalent to a clinically validated definition;
+- Preview and Export are separate gates;
+- a material revision invalidates earlier Preview/export approval;
+- without an authorized database, fail closed rather than fabricate patient rows, counts, missingness or export receipts.
+
+## Public v0.1 capabilities
+
+| Capability | Status |
+|---|---|
+| MIMIC-IV schema / vital / lab / diagnosis references | ✅ |
+| medication / procedure / score / outcome references | ✅ |
+| cohort design / QC / provenance / security guidance | ✅ |
+| auditable starter semantic registry | ✅ |
+| research request → versioned Contract | ✅ |
+| Contract and SQL SHA-256 hashes | ✅ |
+| 15-tool stdio MCP server | ✅ |
+| confirmation / revision state machine | ✅ |
+| Preview / Export fail-closed gates | ✅ |
+| exact `确认导出` export authorization rule | ✅ |
+| unrestricted patient SQL execution | ❌ intentionally disabled |
+| publication-grade certification of every definition | ❌ study-specific validation required |
+| eICU | ❌ out of scope |
+
+`resources/registry.json` is a public starter registry. Definitions are marked as candidates by default. Registered/executable does not mean publication-validated.
 
 ## Workflow
 
@@ -24,19 +50,17 @@ A registered or executable definition is not automatically a publication-grade c
 Research question
   -> concept/provenance resolution
   -> complete versioned Contract
-  -> compiler -> SQL + hash
+  -> SQL scaffold + Contract hash + SQL hash
   -> researcher confirmation
-  -> controlled Preview
+  -> controlled Preview (only with a reviewed read-only executor)
   -> QC / revision loop
-  -> exact export authorization
-  -> CSV/XLSX + receipt
+  -> exact export authorization: 确认导出
+  -> CSV + receipt
 ```
-
-Any material revision invalidates the earlier Preview/export approval.
 
 ## Install
 
-OpenClaw skill mode:
+OpenClaw / skill mode:
 
 ```bash
 openclaw skills install git:lidongpeng35-lang/mimic-research-skill@main
@@ -47,16 +71,21 @@ Claude Code local development:
 ```bash
 git clone https://github.com/lidongpeng35-lang/mimic-research-skill.git
 cd mimic-research-skill
-python3 scripts/bootstrap_catalog.py
 python3 scripts/launch_mcp.py --doctor
 claude --plugin-dir .
 ```
 
-Codex / Agent Plugins clients can load the repository as a plugin package. It contains both the portable Agent Plugins 1.0.0 surfaces (`plugin.json`, `skills/`, `mcp.json`) and a Codex-native compatibility surface (`.codex-plugin/plugin.json`) with an inline MCP launcher/environment pass-through.
+Codex / Agent Plugins clients can load the repository package. It contains:
 
-## Database configuration
+- `plugin.json` — portable plugin manifest
+- `mcp.json` — portable MCP config
+- `.codex-plugin/plugin.json` — Codex compatibility surface
+- `.claude-plugin/plugin.json` — Claude Code manifest
+- `skills/mimic-research/SKILL.md` — packaged Agent Skill
 
-Use an authorized PostgreSQL read-only role. Supply connection values through the process environment; never commit credentials:
+## Database safety
+
+Real patient Preview must use an authorized MIMIC installation and a dedicated read-only PostgreSQL role. Supply credentials only through environment variables or a secure secret manager:
 
 ```bash
 export PGHOST=localhost
@@ -66,30 +95,57 @@ export PGUSER=readonly_user
 export PGPASSWORD='...'
 ```
 
-If no compatible database is available, static concept review, Contract design, SQL generation, and offline validation may still be used, but patient counts/rows/Preview/export must not be fabricated.
+Check local readiness with:
+
+```bash
+python3 scripts/launch_mcp.py --doctor
+```
+
+The public scaffold deliberately does not enable unrestricted patient execution. If a reviewed read-only executor is unavailable, `mimic_run_preview` fails closed.
+
+## MCP tools
+
+The runtime exposes 15 tools:
+
+`mimic_system_status`, `mimic_v2_search`, `mimic_v2_compile`, `mimic_start_resolution`, `mimic_continue_resolution`, `mimic_run_preview`, `mimic_export`, `mimic_status`, `mimic_inspect`, `mimic_retry`, `mimic_cancel`, `mimic_list_requests`, `mimic_validate_contract`, `mimic_get_provenance`, and `mimic_get_flowchart`.
+
+Tool schemas reject undeclared fields.
+
+## References
+
+The same core entry points present in lightweight MIMIC skills are retained:
+
+- `references/schema.md`
+- `references/vital_signs.md`
+- `references/labs.md`
+- `references/diagnoses.md`
+- `references/common_queries.md`
+
+Additional references cover medications, procedures, severity scores, outcomes, cohort design, quality control, provenance, Python usage, runtime behavior, and security.
 
 ## Validation
 
 ```bash
 python3 scripts/validate_repo.py
-node runtime/dist/mcp-smoke.js
 python3 scripts/launch_mcp.py --doctor
 ```
 
-The repository validator checks manifests, Skill synchronization, registry/acceptance assets, catalog integrity, GitHub file-size safety, and common accidental-secret patterns. The offline MCP smoke test exercises tool discovery and fail-closed workflow gating without patient data.
+GitHub Actions validates repository structure, JSON manifests, the starter registry, MCP initialization, discovery of exactly 15 tools, and fail-closed tool schemas.
 
 ## Research reporting
 
-For a manuscript or supplement, archive the non-sensitive extraction specification: cohort and stay-selection rules, analysis unit, index time, windows, source/code/itemid/unit, aggregation and missingness rules, Contract revision/hash, SQL hash, repository version/commit, definition provenance, and QC summary. See `docs/MANUSCRIPT_REPORTING.md`.
+For a manuscript or supplement, preserve the non-sensitive extraction specification: cohort rules and stepwise counts, analysis unit, ICU/stay selection, index time, time windows, source/code/itemid/unit/specimen, aggregation and missingness rules, Contract revision/hash, SQL hash, repository release/commit, definition provenance, and QC summary.
 
-## Scope
+## Scope and data governance
 
-Primary target: MIMIC-IV core hospital/ICU data. MIMIC-IV-ED, Note, CXR, and ECG are separate optional products. eICU and downstream statistical/causal modeling are outside this repository's extraction scope.
+MIMIC-IV core and MIMIC-IV-ED / Note / CXR / ECG are separate products and are not assumed to all be installed. MIMIC timestamps are deidentified/shifted and should not be interpreted as real patient calendar dates or timezone. MIMIC-IV ICU stays use `stay_id`, not the MIMIC-III `icustay_id` convention.
 
-The repository contains no patient data, PhysioNet credentials, or database passwords. MIT applies to this software only and does not alter the MIMIC/PhysioNet data-use agreement.
+The repository contains no patient data, PhysioNet credentials or database passwords. The MIT License applies to this software only and does not alter PhysioNet/MIMIC data-use agreements.
 
 ## Sources and acknowledgements
 
-Primary technical provenance should trace to MIMIC-IV documentation, PhysioNet data descriptions, MIT-LCP MIMIC Code, and the repository's recorded source corpus. The lightweight public presentation was informed by `yongfanbeta/mimic-skill`; its example SQL is not used as this project's execution authority.
+Primary technical provenance should trace to MIMIC-IV documentation, PhysioNet MIMIC-IV descriptions, MIT-LCP MIMIC Code and the source records stored with each project definition.
 
-See `ACKNOWLEDGEMENTS.md`, `CONTRIBUTING.md`, `SECURITY.md`, `CITATION.cff`, and `CHANGELOG.md`.
+The lightweight public presentation was informed by `yongfanbeta/mimic-skill`; its example SQL is not used as this project's clinical-definition or execution authority. See `ACKNOWLEDGEMENTS.md`.
+
+See also `CONTRIBUTING.md`, `SECURITY.md`, `CITATION.cff`, and `CHANGELOG.md`.
