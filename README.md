@@ -2,118 +2,100 @@
 
 [![CI](https://github.com/lidongpeng35-lang/mimic-research-skill/actions/workflows/ci.yml/badge.svg)](https://github.com/lidongpeng35-lang/mimic-research-skill/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Agent Plugins 1.0.0](https://img.shields.io/badge/Agent%20Plugins-1.0.0-informational.svg)](plugin.json)
 [![MIMIC-IV](https://img.shields.io/badge/Data-MIMIC--IV-informational.svg)](https://mimic.mit.edu/docs/IV/)
 
 面向 MIMIC-IV 回顾性临床研究的数据提取 Skill / Agent Plugin / Codex Plugin / Claude Code Plugin。
 
-它保留轻量 MIMIC Skill 常见的 `SKILL.md + references/` 使用体验，同时增加：可执行语义注册表、版本化研究 Contract、SQL compiler、受控 Preview、质量检查、provenance、revision-aware approval，以及显式确认后的 CSV/XLSX 导出。
+它保留轻量 MIMIC Skill 常见的 `SKILL.md + references/` 体验，但把重点从“让模型直接写一段 SQL”提升到：**概念解析 → 版本化研究 Contract → SQL/provenance → 确认 → Preview/QC → 受控导出**。
 
-> 核心目标不是“让模型凭记忆写一段能跑的 SQL”，而是把研究问题转换为可审计、可复现、可修订、可用于论文 Methods/Supplement 的数据提取规格。
+> 目标不是让 SQL 看起来能跑，而是让 cohort、变量定义、时间窗、聚合、单位、缺失处理和输出粒度都可审计、可复现、可写进论文 Methods/Supplement。
 
 ## 为什么做这个项目
 
-MIMIC 研究最常见的高风险错误通常不是 SQL 语法错误，而是研究语义错误：错误的 `itemid`/ICD、MIMIC-III 与 IV 混用、错误时间窗、错误分析单位、无意的 join 扩增、未经说明的 first/max/mean、单位混合、或把“代码能运行”误当成“临床定义已验证”。
+MIMIC 研究中高风险错误往往不是 SQL 语法，而是研究语义：错误 `itemid`/ICD、MIMIC-III/IV 混用、错误 analysis unit/time zero、隐式 first/max/mean、单位混合、错误 specimen、或 one-to-many join 改变 cohort。
 
-本项目把这些选择显式化并进入版本化 Contract，再由注册定义和 compiler 生成 SQL。患者数据执行与最终导出分别经过 Preview/QC 和授权门控。
+因此本项目坚持：
 
-## 当前能力快照
+- 不凭模型记忆发明 itemid / ICD / table / unit / score formula；
+- 先定义研究语义，再生成 SQL；
+- 未指定 aggregation 时优先保留 raw event；
+- “字典命中”不等于“临床定义已验证”；
+- Preview 与 Export 分离；
+- revision 后旧 Preview/approval 失效；
+- 无数据库时 fail closed，不伪造患者行、样本量、missingness 或 export receipt。
+
+## 当前公开版能力
 
 | 能力 | 状态 |
 |---|---|
-| 生命体征、实验室、诊断/合并症 | ✅ |
-| 药物、ICU infusion、输入/输出、尿量 | ✅ |
-| 手术/操作/治疗 | ✅ |
-| SOFA、SAPS II、OASIS、LODS、Charlson 等派生概念 | ✅，仅限已登记定义 |
-| ICU/住院死亡及时间化结局 | ✅ |
-| raw event 与显式 first/min/max/mean/median 聚合 | ✅ |
-| 自然语言 → 研究 Contract → SQL | ✅ |
-| SQL + read-only Python wrapper | ✅ |
-| 语义检索/定义注册表 | ✅ |
-| 版本化 Contract + SQL hash | ✅ |
-| 15-tool MCP runtime | ✅ |
-| Preview gate + QC | ✅ |
-| revision 后旧 approval 失效 | ✅ |
-| CSV/XLSX export gate | ✅，当前 revision Preview 后且精确确认 |
+| MIMIC-IV schema / vital / lab / diagnosis references | ✅ |
+| medications / procedures / scores / outcomes references | ✅ |
+| cohort design / QC / provenance / security guidance | ✅ |
+| starter semantic registry | ✅，当前为可审计 starter definitions |
+| 自然语言研究请求 → Contract 结构 | ✅ |
+| Contract / SQL SHA-256 | ✅ |
+| 15-tool stdio MCP | ✅ |
+| confirmation / revision state machine | ✅ |
+| Preview / Export fail-closed gate | ✅ |
+| 精确 `确认导出` 授权规则 | ✅ |
+| unrestricted patient SQL execution | ❌，明确禁止 |
+| publication-grade definition certification | ❌，需逐研究验证 |
 | eICU | ❌，不在本仓库范围 |
-| 下游统计建模/因果推断 | ❌，属于提取后的分析阶段 |
 
-当前 runtime index 包含 **359 个可检索的指标/队列过滤条目**（303 indicators + 56 cohort filters），并附带 **20 个 acceptance cases**。研究定义资源中当前有 **263 个 measurement definitions**；其中 262 个标记为 `candidate`、1 个为 `quarantined`。这意味着“已登记/可执行”不等于“已经对所有论文场景完成独立临床验证”。定义成熟度见 [`docs/DEFINITION_LIFECYCLE.md`](docs/DEFINITION_LIFECYCLE.md)。
+当前 `resources/registry.json` 是公开 starter registry。定义默认标记为 `candidate`；**registered/executable 不等于 publication-validated**。后续扩展应通过 provenance + regression/acceptance review，而不是直接增加“看起来像”的代码或 itemid。
 
 ## 工作流
 
 ```text
 研究问题
   ↓
-概念检索 + provenance / candidate resolution
+概念检索 / provenance resolution
   ↓
-完整、版本化 Contract
+完整 versioned Contract
   ↓
-compiler → SQL + hash
+SQL scaffold + Contract hash + SQL hash
   ↓
 研究者确认当前 revision
   ↓
-受控 Preview
+受控 Preview（仅在 reviewed read-only executor 可用时）
   ↓
 QC / revision loop
   ↓
 精确收到“确认导出”
   ↓
-CSV/XLSX + export receipt
+CSV + receipt
 ```
-
-任何条件修改都会产生新的 revision，并使旧 Preview/approval 失效。
 
 ## 安装
 
-### 1. OpenClaw：Skill 模式
-
-Git 安装要求仓库根目录存在 `SKILL.md`，本仓库保留了该入口：
+### OpenClaw / Skill 模式
 
 ```bash
 openclaw skills install git:lidongpeng35-lang/mimic-research-skill@main
 ```
 
-OpenClaw Skill 模式优先用于研究规格、references、概念检索和 SQL 设计。若宿主没有加载本仓库 MCP server，不得把静态结果声称为已执行患者数据查询。
-
-### 2. Claude Code
+### Claude Code
 
 ```bash
 git clone https://github.com/lidongpeng35-lang/mimic-research-skill.git
 cd mimic-research-skill
-python3 scripts/bootstrap_catalog.py
 python3 scripts/launch_mcp.py --doctor
 claude --plugin-dir .
 ```
 
-Claude Code 使用 `.claude-plugin/plugin.json`，Skill 位于 `skills/mimic-research/SKILL.md`，MCP launcher 使用 `${CLAUDE_PLUGIN_ROOT}`。持久状态优先写入宿主提供的 `CLAUDE_PLUGIN_DATA`。
-
-### 3. Codex / Agent Plugins 客户端
+### Codex / Agent Plugins
 
 仓库同时提供：
 
-- `plugin.json` + `mcp.json`：Agent Plugins 1.0.0 portable package；
-- `.codex-plugin/plugin.json`：Codex native/legacy compatibility surface，内联 MCP launcher 与环境变量透传；
-- `skills/mimic-research/SKILL.md`：portable Agent Skill。
+- `plugin.json`：portable plugin manifest
+- `mcp.json`：portable MCP config
+- `.codex-plugin/plugin.json`：Codex compatibility surface
+- `.claude-plugin/plugin.json`：Claude Code manifest
+- `skills/mimic-research/SKILL.md`：packaged Agent Skill
 
-本地开发先运行：
+## 数据库安全
 
-```bash
-git clone https://github.com/lidongpeng35-lang/mimic-research-skill.git
-cd mimic-research-skill
-python3 scripts/bootstrap_catalog.py
-python3 scripts/launch_mcp.py --doctor
-```
-
-随后通过客户端的 Plugins/本地插件入口加载整个仓库目录，而不是仅复制 `SKILL.md`。
-
-### 4. 仅做静态研究设计 / SQL
-
-无患者数据库时仍可使用：`SKILL.md`、`references/`、`resources/`、compiler 和离线 MCP smoke。此模式可以做 concept resolution、Contract、SQL 生成和 validation plan，但必须标记为 **not executed**；不得模拟患者行、样本量、患病率、missingness 或 export receipt。
-
-## 数据库环境
-
-运行患者 Preview/Export 时使用环境变量，不要把密码写入仓库：
+真实患者 Preview 必须使用授权的 MIMIC 安装和独立 read-only PostgreSQL role。连接信息只通过环境变量或安全 secret manager 提供：
 
 ```bash
 export PGHOST=localhost
@@ -123,68 +105,25 @@ export PGUSER=readonly_user
 export PGPASSWORD='...'
 ```
 
-推荐使用独立的 PostgreSQL read-only role。示例见 [`config/example.env`](config/example.env)。
-
-运行环境检查：
+运行：
 
 ```bash
 python3 scripts/launch_mcp.py --doctor
 ```
 
-没有数据库、派生表或依赖时，runtime 应 fail closed，而不是伪造 Preview 或自动降级成不受控患者查询。
+当前公开 scaffold 故意不启用 unrestricted patient executor；当没有经过审核的只读执行器时，`mimic_run_preview` 会 fail closed。这比悄悄执行未经验证的 SQL 更适合科研工作流。
 
-## 使用示例
+## MCP tools
 
-```text
-请在 MIMIC-IV 中构建 ICU 脓毒症队列：年龄 ≥65 岁，排除 RRT；
-以 ICU 入科为 time zero，提取 0–24 h lactate 首次值、SOFA 最大值、
-去甲肾上腺素暴露和 28 天死亡，并先给我 Contract 与 Preview。
-```
+公开 runtime 暴露 15 个工具：
 
-Skill 应先解析并核验 sepsis、RRT、lactate、SOFA、norepinephrine、mortality 等概念，而不是直接凭记忆拼 `itemid`/ICD。若某个定义存在实质歧义，保持 `unresolved` 并让研究者选择。
+`mimic_system_status`, `mimic_v2_search`, `mimic_v2_compile`, `mimic_start_resolution`, `mimic_continue_resolution`, `mimic_run_preview`, `mimic_export`, `mimic_status`, `mimic_inspect`, `mimic_retry`, `mimic_cancel`, `mimic_list_requests`, `mimic_validate_contract`, `mimic_get_provenance`, `mimic_get_flowchart`。
 
-## 关键研究原则
+所有工具 schema 对未声明字段 fail closed。
 
-1. **不凭记忆发明定义。** `itemid`、ICD、表、单位、公式和派生评分必须来自注册表、字典或可追溯来源。
-2. **先定义研究语义，再写 SQL。** cohort、analysis unit、index time、window、variable role、aggregation、missingness、output grain 必须进入 Contract。
-3. **未指定 aggregation 时默认 raw event。** 不自动把“24 h 内 lactate”解释成 first/max/mean。
-4. **字典命中不等于临床等价。** label/code 存在只证明映射候选存在，不证明适合当前研究定义。
-5. **Preview 与 Export 分离。** Preview 验证 row grain、window、unit、missingness 和 join multiplicity；导出另需当前 revision 的显式授权。
-6. **导出短语是精确门控。** 只有当前 revision 完成 Preview 后，精确收到 `确认导出` 才允许最终导出。
-7. **失败分类明确。** “0 rows”“unresolved definition”“source missing”“DB unavailable”“SQL failed”不能合并成同一种失败。
+## References
 
-## 仓库结构
-
-```text
-mimic-research-skill/
-├── README.md / README_EN.md
-├── SKILL.md                         # OpenClaw / root skill entry
-├── plugin.json                      # Agent Plugins 1.0.0 manifest
-├── mcp.json                         # portable MCP configuration
-├── .claude-plugin/plugin.json       # Claude Code manifest + MCP launcher
-├── .codex-plugin/plugin.json        # Codex manifest + native/legacy MCP overlay
-├── skills/
-│   └── mimic-research/SKILL.md      # portable packaged skill
-├── references/                      # human-readable research references
-├── resources/                       # registry/index/acceptance/catalog assets
-├── runtime/
-│   ├── src/                         # TypeScript source snapshot
-│   ├── dist/                        # bundled precompiled runtime
-│   └── corpus/                      # provenance/source SQL corpus
-├── scripts/
-│   ├── bootstrap_catalog.py
-│   ├── search_catalog.py
-│   ├── launch_mcp.py
-│   ├── validate_repo.py
-│   └── build_release.py
-├── examples/
-├── docs/
-└── .github/                         # CI, release, issue/PR templates
-```
-
-## References 覆盖范围
-
-与轻量 `mimic-skill` 相同的入口全部保留：
+与 `yongfanbeta/mimic-skill` 相同的核心入口全部保留：
 
 - `references/schema.md`
 - `references/vital_signs.md`
@@ -192,67 +131,71 @@ mimic-research-skill/
 - `references/diagnoses.md`
 - `references/common_queries.md`
 
-另外增加：medications、procedures、scores、outcomes、cohort design、quality control、provenance、Python wrapper、runtime、security 和 reference audit。
+我们另外增加：
 
-## 大字典与 GitHub 文件限制
+- `references/medications.md`
+- `references/procedures.md`
+- `references/scores.md`
+- `references/outcomes.md`
+- `references/cohort_design.md`
+- `references/quality_control.md`
+- `references/provenance.md`
+- `references/python_usage.md`
+- `references/runtime.md`
+- `references/security.md`
 
-完整 SQLite catalog 解压后超过 GitHub 单文件限制，因此仓库跟踪 `resources/catalog.sqlite.gz`。本地执行：
+## 使用示例
 
-```bash
-python3 scripts/bootstrap_catalog.py
-python3 scripts/search_catalog.py "D-dimer" --limit 5
+```text
+请在 MIMIC-IV 中构建 ICU 脓毒症队列：年龄 ≥65 岁，排除 RRT；
+以 ICU 入科为 time zero，提取 0–24 h lactate 首次值、SOFA 最大值、
+去甲肾上腺素暴露和 28 天死亡。先给我完整 Contract，不要直接执行患者数据。
 ```
 
-bootstrap 会校验 archive SHA-256 后再解压到本地缓存；未压缩数据库不会提交进 Git。
-
-## 自检与 CI
-
-```bash
-python3 scripts/validate_repo.py
-node runtime/dist/mcp-smoke.js
-python3 scripts/launch_mcp.py --doctor
-```
-
-`validate_repo.py` 检查 portable/Codex/Claude manifests、Skill 同步、注册表规模、acceptance cases、catalog checksum、GitHub 文件大小和常见 secret 泄漏模式。离线 MCP smoke 验证 15-tool schema 和 workflow gating。
-
-发布时：
-
-```bash
-python3 scripts/build_release.py
-```
-
-GitHub tag `vX.Y.Z` 会触发 release workflow，重复 validation/smoke，构建 deterministic ZIP 和 `SHA256SUMS` 并发布 GitHub Release。
+正确行为是先解析 sepsis、RRT、lactate、SOFA、norepinephrine、mortality 的定义和时序语义。如果某个概念未在 registry 中得到唯一、可信映射，就保持 unresolved，而不是凭记忆补一个 itemid/ICD。
 
 ## 论文复现建议
 
-论文 Methods/Supplement 不应只写“data were extracted from MIMIC-IV”。建议冻结并保存：cohort rule、analysis unit、time zero、window boundary、变量 source/code/itemid/unit、aggregation、missingness、Contract revision/hash、SQL hash、repo commit/version、definition provenance 与 QC summary。详见 [`docs/MANUSCRIPT_REPORTING.md`](docs/MANUSCRIPT_REPORTING.md)。
+论文/Supplement 建议冻结：
 
-## MIMIC 边界
+- cohort rule 与每一步纳排数量；
+- analysis unit / ICU-selection rule；
+- index time / time-window boundary；
+- source table/view / code / itemid / unit / specimen；
+- aggregation / tie-breaking / missingness；
+- Contract revision + SHA-256；
+- SQL SHA-256；
+- repo release/commit；
+- definition provenance 与 QC summary。
 
-- MIMIC-IV core 与 MIMIC-IV-ED、Note、CXR、ECG 是不同数据产品，不假设全部 schema 已安装。
-- MIMIC timestamps 经过患者级去标识化偏移，不解释为患者真实日历时间或真实时区。
-- MIMIC-IV 与 MIMIC-III 的表和键不同，例如 ICU stay 使用 `stay_id`。
+## 自检
+
+```bash
+python3 scripts/validate_repo.py
+python3 scripts/launch_mcp.py --doctor
+```
+
+GitHub Actions 会在 push / pull request 时自动检查 repository structure、JSON manifests、registry size、MCP initialize、15-tool discovery 和 schema fail-closed 规则。
+
+## 边界
+
+- MIMIC-IV core 与 MIMIC-IV-ED / Note / CXR / ECG 是不同数据产品，不假设全部已安装。
+- MIMIC timestamps 经过去标识化偏移，不解释为真实患者日历时间/时区。
+- MIMIC-IV ICU key 是 `stay_id`，不要混用 MIMIC-III 的 `icustay_id`。
 - 本仓库不包含患者数据、PhysioNet 凭据或数据库密码。
-- 本仓库 MIT License 不改变 PhysioNet/MIMIC 数据使用协议。
+- MIT License 仅适用于本软件，不改变 PhysioNet/MIMIC 数据使用协议。
 
-## 参考与致谢
+## 来源与致谢
 
-主要来源包括：
+主要技术来源应追溯到：MIMIC-IV 官方文档、PhysioNet MIMIC-IV 数据说明、MIT-LCP MIMIC Code，以及仓库内记录的 provenance。
 
-- MIMIC-IV documentation: https://mimic.mit.edu/docs/IV/
-- PhysioNet MIMIC-IV: https://physionet.org/content/mimiciv/
-- MIT-LCP MIMIC Code: https://github.com/MIT-LCP/mimic-code
-- 轻量展示结构参考: https://github.com/yongfanbeta/mimic-skill
+仓库的轻量展示结构参考了 `yongfanbeta/mimic-skill`；其示例 SQL **不作为本项目临床定义或执行权威**。详见 `ACKNOWLEDGEMENTS.md`。
 
-本项目不会把轻量参考仓库的示例 SQL当作执行依据；可执行定义应回到本仓库 registry/compiler/corpus 和目标数据库验证。详见 [`ACKNOWLEDGEMENTS.md`](ACKNOWLEDGEMENTS.md)。
+## Contributing / Citation / Security
 
-## 贡献、引用与安全
+- `CONTRIBUTING.md`
+- `SECURITY.md`
+- `CITATION.cff`
+- `CHANGELOG.md`
 
-- 贡献规范：[`CONTRIBUTING.md`](CONTRIBUTING.md)
-- 定义成熟度：[`docs/DEFINITION_LIFECYCLE.md`](docs/DEFINITION_LIFECYCLE.md)
-- 验证策略：[`docs/VALIDATION.md`](docs/VALIDATION.md)
-- Security：[`SECURITY.md`](SECURITY.md)
-- 软件引用：[`CITATION.cff`](CITATION.cff)
-- Changelog：[`CHANGELOG.md`](CHANGELOG.md)
-
-MIT License。
+MIT License.
