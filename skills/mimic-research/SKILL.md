@@ -1,10 +1,14 @@
 ---
 name: mimic-research-skill
-description: Evidence-backed MIMIC-IV cohort and clinical-variable extraction for ICU research. Use for MIMIC-IV cohort definitions, variable/code/itemid resolution, reproducible SQL, time-windowed extraction, QC, preview, and controlled export. Do not use for eICU or unrestricted patient-data queries.
+description: Generate publication-oriented PostgreSQL SQL for MIMIC-IV data extraction from natural-language research requests. Resolve cohort, variables, time windows, aggregation and output grain against repository definitions; do not execute the database.
 ---
 
-# MIMIC-IV Research Data Extraction Skill
+# MIMIC Research Skill
 
-Use the repository root `SKILL.md` as the canonical workflow specification. Resolve concepts before SQL, preserve the complete research Contract, treat unresolved definitions explicitly, use read-only/fail-closed execution, invalidate old approvals after revision, and require the exact phrase `确认导出` after a successful current-revision Preview before final export.
+Use this packaged Skill with the repository root `SKILL.md` as the normative specification. The Skill performs only MIMIC-IV extraction design and SQL generation.
 
-Reference material is under `../../references/`; the executable starter registry is `../../resources/registry.json`; the MCP launcher is `../../scripts/launch_mcp.py`.
+Workflow: parse the natural-language request; resolve definitions against `resources/website-variable-index.json`, `resources/current-definitions.json`, and `references/`; normalize cohort/analysis-unit/index-time/window/aggregation/output-grain semantics; generate complete PostgreSQL SQL; perform static review for join multiplicity, time-window, unit/specimen, aggregation, and MIMIC-IV schema errors.
+
+Never execute patient queries, expose credentials, fabricate itemids/ICD/table/unit/score definitions, or claim observed patient results. Candidate definitions require study-specific validation; quarantined definitions must not be used as execution authority.
+
+For full rules, read the repository root `SKILL.md`.

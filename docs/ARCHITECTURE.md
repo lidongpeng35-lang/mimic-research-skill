@@ -1,23 +1,24 @@
 # Architecture
 
-The public v0.1 package is intentionally small and auditable.
+MIMIC Research Skill is intentionally a **static SQL-generation Skill**, not a database runtime.
 
 ```text
-SKILL.md / references/
-        ↓
-resources/registry.json
-        ↓
-runtime/mcp_server.py
-        ↓
-versioned Contract + hashes
-        ↓
-confirmation / revision state
-        ↓
-reviewed read-only Preview executor (not enabled by default)
-        ↓
-QC → exact export authorization
+Natural-language research request
+        |
+        v
+SKILL.md semantic workflow
+        |
+        +--> resources/website-variable-index.json
+        +--> resources/current-definitions.json
+        +--> references/*.md
+        |
+        v
+Normalized extraction specification
+        |
+        v
+Complete PostgreSQL SQL + definition notes
 ```
 
-The Skill layer defines research semantics. The registry stores candidate concept mappings. The MCP runtime handles discovery, compilation, state transitions and fail-closed gates. Patient execution is deliberately a separate security boundary: the public scaffold will not turn arbitrary generated SQL into unrestricted database reads.
+There is no MCP server, database executor, patient-data preview service, or export runtime in the repository.
 
-A future full registry/compiler release may replace or extend the starter registry while preserving the same Contract, provenance, revision and export-gating principles.
+The host model performs language understanding and SQL composition under the constraints in `SKILL.md`; repository resources provide structured definitions and provenance constraints. CI validates package integrity and research-safety rules, not patient-data execution.

@@ -1,0 +1,26 @@
+{
+  "schema_version": "0.2.0",
+  "patient_data": false,
+  "cases": [
+    {"id":"ex01","prompt":"脓毒症、65岁以上、排除透析，给我 SOFA 最大值和乳酸首值","expected":"ask_follow_up","reason":"must clarify sepsis definition and RRT treatment-event semantics"},
+    {"id":"ex02","prompt":"首次 ICU 入住，取入 ICU 后24小时乳酸","expected":"ask_follow_up","reason":"aggregation unspecified"},
+    {"id":"ex03","prompt":"首次 ICU 入住，取入 ICU 后24小时第一次乳酸","expected":"generate_sql","checks":["first ICU logic","[0,24h) window","deterministic first-value ranking"]},
+    {"id":"ex04","prompt":"取 ICU 前6小时到后24小时最大肌酐","expected":"generate_sql","checks":["[-6,24h) anchored window","max aggregation"]},
+    {"id":"ex05","prompt":"每个病人只保留第一次住院和第一次 ICU","expected":"generate_sql","checks":["patient-level hospitalization ranking","ICU ranking"]},
+    {"id":"ex06","prompt":"排除 RRT 患者","expected":"ask_follow_up","reason":"diagnosis history and treatment-event exclusion are not equivalent"},
+    {"id":"ex07","prompt":"提取机械通气是否发生","expected":"ask_follow_up","reason":"time window is required for exposure semantics"},
+    {"id":"ex08","prompt":"ICU后24h是否使用去甲肾上腺素","expected":"generate_sql","checks":["administration/inputevent semantics","window overlap"]},
+    {"id":"ex09","prompt":"ICU后24h去甲肾上腺素最大剂量","expected":"ask_follow_up","reason":"dose normalization/unit policy must be defined"},
+    {"id":"ex10","prompt":"提取28天死亡","expected":"ask_follow_up","reason":"28-day mortality needs an index time"},
+    {"id":"ex11","prompt":"以 ICU 入科为 time zero 提取28天死亡","expected":"generate_sql","checks":["death time relative to ICU intime"]},
+    {"id":"ex12","prompt":"取患者所有 lactate 原始事件","expected":"generate_sql","checks":["long-form event grain","event time retained","no hidden aggregation"]},
+    {"id":"ex13","prompt":"提取 SOFA","expected":"ask_follow_up","reason":"score time/window semantics must be specified or inherited from a vetted derived concept"},
+    {"id":"ex14","prompt":"提取 ICU 后24小时最大 SOFA","expected":"generate_sql","checks":["derived score semantics documented","max aggregation"]},
+    {"id":"ex15","prompt":"按 ICD 诊断筛选心衰","expected":"ask_follow_up","reason":"ICD version/code-set definition required"},
+    {"id":"ex16","prompt":"把缺失乳酸当0","expected":"generate_sql_with_warning","reason":"explicit user rule allowed but must be called out as a study assumption"},
+    {"id":"ex17","prompt":"取 ICU 后24小时平均心率","expected":"generate_sql","checks":["correct stay join","time window","mean aggregation"]},
+    {"id":"ex18","prompt":"取住院期间所有微生物培养","expected":"generate_sql","checks":["hadm-level time semantics","event-level output unless aggregation requested"]},
+    {"id":"ex19","prompt":"提取 MIMIC-III 的 ICUSTAY_ID","expected":"reject_or_redirect","reason":"default scope is MIMIC-IV and uses stay_id"},
+    {"id":"ex20","prompt":"生成 SQL 并直接连接数据库导出 CSV","expected":"sql_only","reason":"database execution/export is outside Skill scope"}
+  ]
+}

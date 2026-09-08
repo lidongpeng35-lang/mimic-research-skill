@@ -1,34 +1,83 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-import json, subprocess, sys
+
+import json
 from pathlib import Path
-ROOT=Path(__file__).resolve().parents[1]
-REQUIRED=[
-  'README.md','README_EN.md','SKILL.md','LICENSE','CITATION.cff','plugin.json','mcp.json',
-  '.claude-plugin/plugin.json','.codex-plugin/plugin.json','skills/mimic-research/SKILL.md',
-  'resources/registry.json','runtime/mcp_server.py','scripts/launch_mcp.py',
-  'references/schema.md','references/vital_signs.md','references/labs.md','references/diagnoses.md','references/common_queries.md',
-  'references/medications.md','references/procedures.md','references/scores.md','references/outcomes.md','references/cohort_design.md',
-  'references/quality_control.md','references/provenance.md','references/python_usage.md','references/runtime.md','references/security.md'
+
+ROOT = Path(__file__).resolve().parents[1]
+
+REQUIRED = [
+    "README.md",
+    "README_EN.md",
+    "SKILL.md",
+    "LICENSE",
+    "CITATION.cff",
+    "plugin.json",
+    ".claude-plugin/plugin.json",
+    ".codex-plugin/plugin.json",
+    "skills/mimic-research/SKILL.md",
+    "resources/core-registry.json",
+    "resources/acceptance-cases.json",
+    "references/schema.md",
+    "references/vital_signs.md",
+    "references/labs.md",
+    "references/diagnoses.md",
+    "references/common_queries.md",
+    "references/medications.md",
+    "references/procedures.md",
+    "references/scores.md",
+    "references/outcomes.md",
+    "references/cohort_design.md",
+    "references/quality_control.md",
+    "references/provenance.md",
+    "docs/ARCHITECTURE.md",
 ]
-def fail(msg): print('ERROR:',msg,file=sys.stderr); raise SystemExit(1)
-missing=[x for x in REQUIRED if not (ROOT/x).is_file()]
-if missing: fail('missing: '+', '.join(missing))
-for p in ['plugin.json','mcp.json','.claude-plugin/plugin.json','.codex-plugin/plugin.json','resources/registry.json']:
-    json.loads((ROOT/p).read_text(encoding='utf-8'))
-reg=json.loads((ROOT/'resources/registry.json').read_text(encoding='utf-8'))
-if len(reg.get('concepts',[])) < 20: fail('starter registry unexpectedly small')
-proc=subprocess.Popen([sys.executable,str(ROOT/'runtime/mcp_server.py')],stdin=subprocess.PIPE,stdout=subprocess.PIPE,text=True)
-msgs=[
- {'jsonrpc':'2.0','id':1,'method':'initialize','params':{'protocolVersion':'2025-06-18','capabilities':{},'clientInfo':{'name':'ci','version':'1'}}},
- {'jsonrpc':'2.0','method':'notifications/initialized','params':{}},
- {'jsonrpc':'2.0','id':2,'method':'tools/list','params':{}}
+
+FORBIDDEN = [
+    "mcp.json",
+    "runtime/mcp_server.py",
+    "scripts/launch_mcp.py",
 ]
-for m in msgs: proc.stdin.write(json.dumps(m)+'\n'); proc.stdin.flush()
-r1=json.loads(proc.stdout.readline()); r2=json.loads(proc.stdout.readline()); proc.terminate()
-if r1.get('result',{}).get('serverInfo',{}).get('name')!='mimic-research-skill': fail('MCP initialize failed')
-tools=r2.get('result',{}).get('tools',[])
-if len(tools)!=15: fail(f'expected 15 tools, got {len(tools)}')
-for t in tools:
-    if t.get('inputSchema',{}).get('additionalProperties') is not False: fail('tool schema must fail closed on undeclared fields: '+t.get('name','?'))
-print(f"OK: release-ready scaffold; concepts={len(reg['concepts'])}; tools={len(tools)}")
+
+
+def fail(message: str) -> None:
+    raise SystemExit(f"ERROR: {message}")
+
+
+missing = [p for p in REQUIRED if not (ROOT / p).is_file()]
+if missing:
+    fail("missing required files: " + ", ".join(missing))
+
+present_forbidden = [p for p in FORBIDDEN if (ROOT / p).exists()]
+if present_forbidden:
+    fail("pure Skill must not contain MCP/runtime execution files: " + ", ".join(present_forbidden))
+
+for path in ["plugin.json", ".claude-plugin/plugin.json", ".codex-plugin/plugin.json", "resources/core-registry.json", "resources/acceptance-cases.json"]:
+    json.loads((ROOT / path).read_text(encoding="utf-8"))
+
+registry = json.loads((ROOT / "resources/core-registry.json").read_text(encoding="utf-8"))
+concepts = registry.get("concepts", [])
+if len(concepts) < 30:
+    fail(f"core registry unexpectedly small: {len(concepts)}")
+
+cases = json.loads((ROOT / "resources/acceptance-cases.json").read_text(encoding="utf-8")).get("cases", [])
+if len(cases) < 20:
+    fail(f"acceptance cases unexpectedly small: {len(cases)}")
+
+root_skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
+packaged_skill = (ROOT / "skills/mimic-research/SKILL.md").read_text(encoding="utf-8")
+for text, label in [(root_skill, "root SKILL"), (packaged_skill, "packaged SKILL")]:
+    if "MIMIC-IV" not in text:
+        fail(f"{label} must explicitly target MIMIC-IV")
+    if "PostgreSQL SQL" not in text:
+        fail(f"{label} must explicitly target PostgreSQL SQL generation")
+
+for token in ["itemid", "ICD", "analysis unit", "time window", "aggregation"]:
+    if token.lower() not in root_skill.lower():
+        fail(f"root SKILL missing critical rule: {token}")
+
+architecture = (ROOT / "docs/ARCHITECTURE.md").read_text(encoding="utf-8")
+if "There is no MCP server" not in architecture:
+    fail("architecture must explicitly state MCP is out of scope")
+
+print(f"OK: pure MIMIC-IV SQL-generation Skill; core_concepts={len(concepts)}; acceptance_cases={len(cases)}")

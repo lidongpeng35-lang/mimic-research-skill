@@ -1,90 +1,200 @@
 ---
 name: mimic-research-skill
-description: Evidence-backed MIMIC-IV cohort and clinical-variable extraction for ICU research. Use for MIMIC-IV cohort definitions, variable/code/itemid resolution, reproducible SQL, time-windowed extraction, QC, preview, and controlled export. Do not use for eICU or unrestricted patient-data queries.
+description: Generate publication-oriented PostgreSQL SQL for MIMIC-IV data extraction from natural-language research requests. Resolve cohort, variables, time windows, aggregation and output grain against repository definitions; do not execute the database.
 ---
 
-# MIMIC-IV Research Data Extraction Skill
+# MIMIC Research Skill
 
-Convert a natural-language research question into an auditable MIMIC-IV extraction specification and PostgreSQL query. The governing principle is simple: do not invent `itemid`, ICD codes, tables, units, formulas, cohort definitions, or validation results from memory.
+## Scope
 
-## Workflow
+Use this Skill only for MIMIC-IV data extraction design and SQL generation.
 
-1. Parse the complete research question: population, inclusion/exclusion, analysis unit, index time, time window, variables, aggregation, missingness, and output grain.
-2. Resolve every named clinical concept against the bundled references/registry before compiling SQL.
-3. Keep materially different candidates separate. If a mapping is unresolved, say so instead of selecting the closest label.
-4. Freeze the complete request as a versioned Contract.
-5. Compile the Contract to SQL and preserve a SQL hash/provenance record.
-6. With an authorized read-only database, run only a controlled Preview first.
-7. Check cohort grain, joins, time windows, duplicates, units, missingness, and row multiplicity.
-8. Any material revision creates a new Contract revision and invalidates earlier Preview/export approval.
-9. Final CSV/XLSX export requires the current revision to have passed Preview and the exact phrase `确认导出`.
+Primary task:
 
-## Research semantics
+`natural-language research request -> explicit extraction specification -> MIMIC-IV mapping -> complete PostgreSQL SQL`
 
-A complete extraction specification should record:
+Do not use this Skill for:
 
-- dataset and dependency version;
-- population and disease definition;
-- analysis unit (`subject_id`, `hadm_id`, or `stay_id`);
-- ICU-selection rule and time zero;
-- each variable's role (filter/output/both);
-- source table/view and code/itemid/column;
-- specimen/method and unit when relevant;
-- time anchor and half-open window boundaries;
-- raw records or explicit aggregation (first/min/max/mean/median/etc.);
-- tie-breaking, duplicate, missingness, conversion, and outlier rules;
-- expected columns and final row grain.
+- MIMIC-III or eICU unless the user explicitly requests a separate non-default analysis;
+- database administration;
+- patient-level query execution;
+- CSV/XLSX export;
+- downstream statistical modeling, causal inference, or manuscript result interpretation.
 
-If a measurement window is requested without an aggregation, default to event-level raw records rather than silently selecting first/max/mean.
+## Required workflow
 
-## Schema boundaries
+### Step 1 — Parse the research request
 
-MIMIC-IV core, MIMIC-IV-ED, MIMIC-IV-Note, MIMIC-CXR, and MIMIC-IV-ECG are separate products. Do not assume optional products are installed. ICU stays use `stay_id`; hospital events commonly use `hadm_id`; patient-level data use `subject_id`. MIMIC timestamps are deidentified/shifted and must not be interpreted as real patient calendar time.
+Extract, when present:
 
-## Query rules
+- population / inclusion / exclusion criteria;
+- analysis unit: patient, admission, ICU stay, event, or other explicit grain;
+- stay-selection policy, e.g. first ICU stay;
+- index time / anchor;
+- requested variables;
+- each variable's role: cohort filter, exposure, covariate, score, outcome, descriptive field;
+- time window;
+- aggregation: raw, first, last, min, max, mean, median, sum, count, duration, yes/no, etc.;
+- output grain and identifiers.
 
-- Build the cohort once at the confirmed analysis unit.
-- Preserve `subject_id`, `hadm_id`, and `stay_id` where available.
-- Use explicit time windows such as `event_time >= intime AND event_time < intime + INTERVAL '24 hour'`.
-- Separate cohort selection, event filtering, calculated-result filtering, and output display.
-- Preserve raw value/unit/source identifiers when normalizing data.
-- Never hide join multiplication with `DISTINCT` before understanding the join cardinality.
-- Parameterize user-controlled values and never splice arbitrary user text into SQL identifiers/fragments.
+Never silently infer a clinically meaningful choice when multiple plausible interpretations would materially change the result.
 
-## Quality control
+### Step 2 — Resolve definitions
 
-Before calling an extraction ready, verify:
+Use repository resources before relying on model memory:
 
-- row grain and distinct analysis-unit counts;
-- expected stay/admission assignment;
-- window boundaries and timestamps;
-- duplicate/tie behavior;
-- source, specimen/method, unit, and value type;
-- compatible unit handling;
-- missingness versus exclusion;
-- implausible-value handling;
-- final columns/order/types.
+1. `resources/website-variable-index.json` for searchable controls and variable names;
+2. `resources/current-definitions.json` for measurement/filter/window/anchor/aggregation definitions;
+3. the most relevant file under `references/`;
+4. source/provenance notes recorded in those resources.
 
-Treat zero rows, unresolved definitions, missing sources, database unavailability, and SQL failure as different outcomes.
+Treat `status: candidate` as a candidate definition requiring study-specific review. Treat quarantined definitions as unusable unless the user explicitly asks to inspect them.
 
-## Offline behavior
+Do not invent or silently substitute:
 
-Without an authorized database, static concept resolution, Contract design, SQL generation, and validation planning may proceed, but outputs must be labeled `not executed`. Never fabricate patient rows, sample size, prevalence, missingness, or export receipts.
+- itemid;
+- ICD-9/10 code;
+- table or column;
+- specimen type;
+- unit conversion;
+- score formula;
+- time semantics;
+- derived-table meaning.
 
-## Reference map
+If a requested concept has no reliable mapping, say it is unresolved and ask a focused question or provide a clearly labeled validation plan. Do not fabricate SQL for the unresolved component.
+
+### Step 3 — Normalize the extraction specification
+
+Before SQL, internally normalize the request to a specification with at least:
+
+- `population`
+- `analysis_unit`
+- `stay_selection`
+- `index_time`
+- `variables[]`
+  - concept
+  - source/definition
+  - role
+  - window
+  - aggregation
+  - unit/specimen where relevant
+- `output_grain`
+
+Use half-open time windows `[start, end)` unless a source definition explicitly requires different semantics.
+
+If aggregation is not specified and cannot be safely inferred, ask. Do not default all measurements to first/max/mean.
+
+### Step 4 — Generate formal SQL
+
+The final SQL must be complete PostgreSQL SQL, not pseudocode and not a placeholder scaffold.
+
+Use the following structural rules:
+
+- CTEs should separate cohort selection, stay selection, variable extraction, aggregation, and final assembly;
+- joins must use explicit keys (`subject_id`, `hadm_id`, `stay_id`) appropriate to each table;
+- one-to-many joins must be aggregated or semijoined before final assembly when the output grain is one row per patient/admission/stay;
+- time filtering must be explicit relative to the chosen anchor;
+- first/last values must use deterministic ordering and a documented tie-break policy;
+- diagnosis/procedure code systems must distinguish ICD-9 from ICD-10;
+- MIMIC-IV and MIMIC-III schema conventions must never be mixed;
+- if `mimiciv_derived` is used, state the derived concept and any important dependency/time semantics;
+- avoid DDL, writes, temporary destructive operations, privilege changes, and credential handling;
+- do not include `INSERT`, `UPDATE`, `DELETE`, `DROP`, `ALTER`, `TRUNCATE`, `CREATE ROLE`, or similar administrative operations.
+
+### Step 5 — Static quality review
+
+Before presenting SQL, check:
+
+- requested cohort logic is represented;
+- analysis unit and final row grain match;
+- first ICU / first admission logic, if requested, is explicit;
+- every requested variable is present or explicitly unresolved;
+- every time window is anchored correctly;
+- aggregation matches the request;
+- join multiplication cannot silently change the cohort;
+- units/specimens are not silently mixed;
+- aliases and CTE names are readable;
+- SQL contains no write operations;
+- assumptions are documented.
+
+## Response format
+
+For a substantive extraction request, return these sections in order:
+
+1. **研究规格 / Extraction specification** — concise normalized interpretation.
+2. **需要确认的歧义 / Blocking ambiguities** — only issues that materially change SQL. If none, say none.
+3. **SQL** — one complete PostgreSQL code block.
+4. **定义与来源 / Definition notes** — key table/field/derived/provenance notes and candidate-definition warnings.
+
+If blocking ambiguity exists, do not pretend a single SQL is definitive. Either ask the minimum necessary question first, or present clearly labeled alternative SQL branches only when that is more useful.
+
+## Research semantics rules
+
+### Analysis unit
+
+Always distinguish:
+
+- patient-level (`subject_id`);
+- hospitalization-level (`hadm_id`);
+- ICU-stay-level (`stay_id`);
+- event-level long-form outputs.
+
+Do not use `DISTINCT` as a generic repair for an incorrect join.
+
+### Time
+
+MIMIC timestamps are deidentified and shifted. Use them for within-patient temporal relations, not as true real-world calendar dates/time zones.
+
+For anchored windows, prefer:
+
+```sql
+WHERE event_time >= anchor_time + INTERVAL '0 hour'
+  AND event_time <  anchor_time + INTERVAL '24 hour'
+```
+
+### Measurements
+
+Same-name measurements may have multiple sources, itemids, specimens, or units. Resolve these explicitly. When using raw-event sources, return event time when it is important for auditability.
+
+### First / last
+
+Use deterministic ranking, typically `ROW_NUMBER()` with event time plus a stable secondary key when available. Do not rely on unordered `DISTINCT ON` or `MIN(value)` as a substitute for first observation.
+
+### Scores
+
+Prefer maintained MIMIC Code / validated derived concepts. Do not reconstruct SOFA, SAPS II, OASIS, LODS, Charlson, Sepsis-3, etc. from memory when a vetted definition is available.
+
+### Diagnoses and procedures
+
+Explicitly state whether codes are ICD-9 or ICD-10. Do not use truncated mappings unless the research definition explicitly calls for prefix/category matching.
+
+### Medications
+
+Distinguish prescription/order data from administered ICU input/infusion data. Drug name matching alone is not equivalent to dose-normalized exposure.
+
+### Missingness
+
+SQL generation should preserve missingness unless the study request explicitly defines imputation or a missing-value rule. Never silently coalesce missing clinical values to zero.
+
+## Useful repository references
+
+Start with the narrowest relevant file:
 
 - `references/schema.md`
 - `references/vital_signs.md`
 - `references/labs.md`
 - `references/diagnoses.md`
-- `references/common_queries.md`
 - `references/medications.md`
 - `references/procedures.md`
 - `references/scores.md`
 - `references/outcomes.md`
 - `references/cohort_design.md`
+- `references/common_queries.md`
 - `references/quality_control.md`
 - `references/provenance.md`
-- `references/python_usage.md`
-- `references/runtime.md`
-- `references/security.md`
+
+## Final rule
+
+The Skill succeeds when a researcher can inspect the SQL and understand exactly how the natural-language request was translated into MIMIC-IV data logic.
+
+Do not claim that SQL was executed or that patient counts/results were observed unless the user independently provides those results.
