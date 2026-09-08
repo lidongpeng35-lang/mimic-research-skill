@@ -1,0 +1,16 @@
+.env
+.env.*
+!.env.example
+config/local.env
+resources/catalog.sqlite
+__pycache__/
+*.pyc
+node_modules/
+runtime/node_modules/
+exports/
+state/
+dist-release/
+*.csv
+*.xlsx
+*.parquet
+.DS_Store
